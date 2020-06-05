@@ -101,6 +101,30 @@ void loop() {
     }
     //Check sensors while Client is connected
     if (millis() - t > 10000) {
+      t = millis();
+      if (analogRead(voltagePin) < MINIMUM_VOLTAGE) {
+        //Some Warnng function;
+      }
+      temperature = (double) dht.readTemperature();
+      output = computePID(temperature);
+      delay(100);
+
+      if (output < 0) {
+        output = 0;
+      }
+      else if ( output > 8) {
+        output = 8;
+      }
+      else {
+        output = output;
+      }
+      output = (int)((output / 8) * 255);
+      analogWrite(controllerPin, output);
+    }
+
+  }
+  // Kollar om 10 Sek har gått
+  if (millis() - t > 10000) {
     t = millis();
     if (analogRead(voltagePin) < MINIMUM_VOLTAGE) {
       //Some Warnng function;
@@ -121,34 +145,16 @@ void loop() {
     output = (int)((output / 8) * 255);
     analogWrite(controllerPin, output);
   }
-    
-    }
-     if (millis() - t > 10000) {
-    t = millis();
-    if (analogRead(voltagePin) < MINIMUM_VOLTAGE) {
-      //Some Warnng function;
-    }
-    temperature = (double) dht.readTemperature();
-    output = computePID(temperature);
-    delay(100);
-
-    if (output < 0) {
-      output = 0;
-    }
-    else if ( output > 8) {
-      output = 8;
-    }
-    else {
-      output = output;
-    }
-    output = (int)((output / 8) * 255);
-    analogWrite(controllerPin, output);
-  }
-  }
-  
- 
+}
 
 
+
+/**
+ * Function for computing PI-regulation, by Oskar N  
+ * 
+ * @param input value
+ * @return ouput value of the calculated PI-regulation
+ */
 double computePID (double inp) {
   t = millis();                                    //get current time
   elapsedTime = (double)(t - previousTime);        //compute time elapsed from previous computation
@@ -165,7 +171,12 @@ double computePID (double inp) {
 }
 
 
-// Function for initializing the Wifi-module
+/**
+ * Function for initializing the Wifi-module of the MKR1010
+ * 
+ * @param char array with the specified SSID name
+ * @return true if the wifi iinitialized succesfully, false otherwise
+ */
 bool wifiInit(char ssid[]) {
   Serial.println("AP INITIALIZED");
   if (WiFi.status() == WL_NO_MODULE) {
@@ -188,6 +199,10 @@ bool wifiInit(char ssid[]) {
   printWiFiStatus();
   return true;
 }
+/**
+ * Simple serial print function for debugging, prints the Wifi SSID and IP-adress in the serial connection
+ *
+ */
 void printWiFiStatus() {
   // print the SSID of the network you're attached to:
   Serial.print("SSID: ");
@@ -198,7 +213,11 @@ void printWiFiStatus() {
   Serial.print("IP Address: ");
   Serial.println(ip);
 }
-
+/**
+ * Http-handeler which should be called upon when there is http data in the client buffer, dependending on content of the recieved data, it will act accordingly
+ * 
+ * @param specified client connected to the network
+ */
 void httpAgent(WiFiClient client) {
 
   while (client.available()) {
@@ -222,7 +241,12 @@ void httpAgent(WiFiClient client) {
   }
   readString = "";
 }
-
+/**
+ * Function for generating an HTTP-response to the client, depending on the input status will generate diffrent responses, at the moment only GET and ERROR is implemented.
+ * 
+ * @param statuscode for the response, predefined in library. see HTTP_STATUSCODE_xxx
+ * @param specified client connected to the network
+ */
 bool httpResponse(int status, WiFiClient client) {
 
   switch (status) {
@@ -230,10 +254,11 @@ bool httpResponse(int status, WiFiClient client) {
     case HTTP_STATUSCODE_GET:
       dataJSON["temp"] = (String) dht.readTemperature();
       dataJSON["volt"] = (String) analogRead(voltagePin);
-      dataJSON["time"] = (String) t;
+      dataJSON["time"] = (String) millis();
       client.println("HTTP/1.1 200 OK");
       client.println("Server: Arduino");
       client.println("Content-Type: application/json");
+      client.println("Connection: close");
       client.println("");
       client.println(JSON.stringify(dataJSON));
       client.println("");
